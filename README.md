@@ -1,3 +1,107 @@
+# AnimateDiff Prompt Travel, with a web UI
+
+A fork of [s9roll7/animatediff-cli-prompt-travel](https://github.com/s9roll7/animatediff-cli-prompt-travel)
+(built on [neggles/animatediff-cli](https://github.com/neggles/animatediff-cli)):
+[AnimateDiff](https://github.com/guoyww/AnimateDiff) with prompt travel + [ControlNet](https://github.com/lllyasviel/ControlNet)
++ [IP-Adapter](https://github.com/tencent-ailab/IP-Adapter), plus a web UI, AnimateDiff v3 support and bug fixes.
+
+Prompt travel changes the prompt over the course of a video (frame 0 *standing*, frame 32 *walking*,
+frame 64 *running*) and the animation morphs between them.
+
+## Features
+
+**Web UI** (`webui.bat`)
+- **Text → Video**: prompt timeline, LoRAs, camera motion, reference images, ControlNet, img2img, presets.
+- **Video → Video**: restyle a video. Frames are extracted and auto-described; then do a test run or a full
+  render, with an optional larger second pass.
+- **Upscale & Refine**: re-render any finished video larger.
+- **Gallery** of every run (reload its settings, upscale, delete) and a **Setup** page (GPU, models, job queue).
+- Renders run in a background queue: live progress, cancel, and they keep going if you close the page.
+- Settings are checked before a run starts, and errors are explained in plain language with a fix.
+
+**Generation**
+- Prompt travel with a keyframe hold control. Videos loop by default, or can end on the last keyframe.
+- Any length (sliding context windows), mp4 / gif / webm output.
+- SD 1.5 and SDXL checkpoints, VAEs, LoRAs (per region / per frame in configs), textual-inversion embeddings,
+  wildcards.
+- Motion modules v1, v2, **v3** (+ domain adapter), long-context modules; v2 camera-motion LoRAs.
+- ControlNet (18 types incl. OpenPose/DWPose, depth, line art, tile, QR Code Monster, AnimateDiff ControlNet)
+  from a driving video or keyframe images, with automatic preprocessing.
+- IP-Adapter (Plus, Plus Face, Full Face, Light), reference-only, img2img, region prompts.
+- Fast mode (LCM-LoRA) and the gradual hi-res fix for large sizes.
+
+**Video & post**
+- Video stylization with WD14 auto-tagging; subject/background masks and regions (CLI, extra packages).
+- Refine (AnimateDiff re-render) and tile upscale; optional RIFE frame interpolation.
+
+## Changelog
+
+Changes in this fork, newest first. Based on upstream
+[`dbf40d1`](https://github.com/s9roll7/animatediff-cli-prompt-travel/commit/dbf40d1) (2023-12-13).
+
+### 2026-10-11
+- **Added**: web UI (`webui.bat`) with Text → Video, Video → Video, Upscale & Refine, Gallery and Setup tabs.
+- **Added**: AnimateDiff v3 motion modules (detected automatically, `config/inference/motion_v3.json`) and the
+  v3 domain adapter; long-context motion modules.
+- **Added**: optional `scheduler_kwargs` in prompt configs (e.g. trailing timestep spacing for AnimateDiff-Lightning).
+- **Fixed**: prompt travel paired keyframes with the wrong prompts when there were 3 or more (keyframes 0/32/64/96
+  never showed the frame-64 prompt). Renders now follow the timeline, so they won't match seeds from the original repo.
+- **Fixed**: crash when the video is shorter than the context window.
+- **Fixed**: a motion module that doesn't match its config now raises an error instead of silently producing no motion.
+- **Fixed** (Windows): model auto-downloads no longer hang; the WD14 tagger and DWPose fall back to CPU onnxruntime.
+- **Changed**: `stylize create-config` only enables the gradual hires fix with `-gh` (at the default 512 it
+  washed out every frame).
+- **Changed**: motion-module type detection reads only the file's keys instead of loading the whole file.
+
+## Installation (Windows)
+[Python 3.10](https://www.python.org/), git and [ffmpeg](https://ffmpeg.org/) (on PATH) must be installed.
+
+```sh
+git clone https://github.com/pxl-pshr/animatediff-cli-prompt-travel.git
+cd animatediff-cli-prompt-travel
+py -3.10 -m venv venv
+venv\Scripts\activate.bat
+set PYTHONUTF8=1
+python -m pip install --upgrade pip
+# This repo needs torch 2.1.x. Use cu118 or cu121 to match your NVIDIA driver
+# (https://pytorch.org/get-started/previous-versions/). An unpinned install gets replaced by a CPU-only build.
+python -m pip install torch==2.1.2 torchvision==0.16.2 torchaudio==2.1.2 --index-url https://download.pytorch.org/whl/cu121
+python -m pip install -e .
+
+# Video → Video (the 'stylize' command):
+python -m pip install -e .[stylize]
+# Subject/background masks ('stylize create-mask' / 'create-region' / 'composite'):
+python -m pip install -e .[stylize_mask]
+```
+Put checkpoints in `data/models/sd`, motion modules in `data/models/motion-module`, LoRAs anywhere under
+`data/models` (e.g. `data/models/lora`). ControlNet, IP-Adapter and other helper models download on first use.
+
+## Web UI
+Double-click **`webui.bat`** (or run it from a terminal). The first launch creates `ui\.venv` with Gradio (kept
+separate from `venv\` because Gradio needs pydantic 2), then opens http://127.0.0.1:7860.
+Options: `webui.bat --port 7861`, `--listen` (LAN), `--share`.
+
+Hover the **?** next to any setting for an explanation. The CLI still works exactly as documented in the original
+README below.
+
+## AnimateDiff v3 and newer motion modules
+Put the files in `data/models/motion-module/` and select them like any other motion module; the type is detected
+from the file (no need to edit configs).
+- **v3** (`v3_sd15_mm.ckpt`): supported, context up to 32. The optional **domain adapter** (`v3_sd15_adapter.ckpt`)
+  is an image LoRA, but the CLI loads it through `motion_lora_map` (the UI lists it with the other LoRAs), scale 0.5–1.0.
+
+These load with the same changes (verified from their weights) but haven't been render-tested yet:
+- **AnimateDiff-Lightning** (`*_comfyui.safetensors`): Euler, CFG 1, 2–8 steps, with
+  `"scheduler_kwargs": {"timestep_spacing": "trailing"}` (the UI sets this automatically).
+- **AnimateLCM** (`AnimateLCM_sd15_t2v.ckpt` + its LoRA in `lora_map` at 0.8): scheduler `lcm`, 4–8 steps, CFG 1–2.
+- **LongAnimateDiff** (64/128-frame modules): context can go above 32.
+- Not supported: SparseCtrl, and diffusers-format "MotionAdapter" folders (use the original / ComfyUI files).
+
+## Original README
+
+<details>
+<summary>Original README from s9roll7/animatediff-cli-prompt-travel: examples, CLI reference, video stylization walkthroughs</summary>
+
 # AnimateDiff prompt travel
 
 [AnimateDiff](https://github.com/guoyww/AnimateDiff) with prompt travel + [ControlNet](https://github.com/lllyasviel/ControlNet) + [IP-Adapter](https://github.com/tencent-ailab/IP-Adapter)
@@ -55,67 +159,7 @@ It seems to work surprisingly well!
 <br>
 <br>
 
-
-### Installation(for windows)
-Same as the original animatediff-cli  
-[Python 3.10](https://www.python.org/) and git client must be installed  
-
-```sh
-git clone https://github.com/s9roll7/animatediff-cli-prompt-travel.git
-cd animatediff-cli-prompt-travel
-py -3.10 -m venv venv
-venv\Scripts\activate.bat
-set PYTHONUTF8=1
-python -m pip install --upgrade pip
-# Torch installation must be modified to suit the environment. (https://pytorch.org/get-started/locally/)
-python -m pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-python -m pip install -e .
-
-# If you want to use the 'stylize' command, you will also need
-python -m pip install -e .[stylize]
-
-# If you want to use use dwpose as a preprocessor for controlnet_openpose, you will also need
-python -m pip install -e .[dwpose]
-# (DWPose is a more powerful version of Openpose)
-
-# If you want to use the 'stylize create-mask' and 'stylize composite' command, you will also need
-python -m pip install -e .[stylize_mask]
-```
-(https://www.reddit.com/r/StableDiffusion/comments/157c0wl/working_animatediff_cli_windows_install/)  
-  
-I found a detailed tutorial  
-(https://www.reddit.com/r/StableDiffusion/comments/16vlk9j/guide_to_creating_videos_with/)  
-(https://www.youtube.com/watch?v=7_hh3wOD81s)  
-
-### Web UI
-After the installation above, double-click **`webui.bat`** (or run it from a terminal). The first launch creates
-`ui\.venv` with Gradio (kept separate from `venv\` because Gradio needs pydantic 2), then opens
-http://127.0.0.1:7860 in your browser. Options: `webui.bat --port 7861`, `--listen` (LAN), `--share`.
-
-| Tab | What it does |
-|---|---|
-| **Text → Video** | Prompt travel with a keyframe table, LoRAs, camera-motion LoRAs, IP-Adapter reference images, up to 3 ControlNet units (upload a driving video or images; frames are extracted and placed for you), img2img, LCM fast mode, gradual hires fix. Load any preset or past run, save your own presets. |
-| **Video → Video** | Stylize a video in 3 steps: prepare (extract frames + auto-describe), style (prompt, model, which ControlNets follow the source, optional 2nd upscale pass), then a short test run or the full render. |
-| **Upscale & Refine** | `refine` (re-render larger with AnimateDiff, smooth) or `tile-upscale` (per frame) on any finished video. |
-| **Gallery** | Every run in `output/`, `upscaled/`, `refine/`, `stylize/` with its settings; reload settings, upscale, open folder, delete. |
-| **Setup & Models** | GPU / environment / optional-feature checks, model inventory, job queue with logs, fix-checkpoint tool. |
-
-Renders run one at a time in a background queue as separate CLI processes: closing or refreshing the page does not
-stop them, Cancel kills the whole process tree, and failures are explained in plain language with a fix.
-Settings are validated before anything starts (missing files, wrong motion-module type, keyframes past the end, …).
-
-### AnimateDiff v3 and newer motion modules
-Put the files in `data/models/motion-module/` and select them like any other motion module; the type is detected
-from the file (no need to edit configs).
-- **v3** (`v3_sd15_mm.ckpt`): supported, context up to 32. The optional **Domain Adapter** (`v3_sd15_adapter.ckpt`)
-  is an image LoRA, but the CLI loads it through `motion_lora_map` (the UI lists it with the other LoRAs and routes it), scale 0.5–1.0.
-
-The next three load with the same changes (verified from their weights) but have not been render-tested yet:
-- **AnimateDiff-Lightning** (`*_comfyui.safetensors`): Euler, CFG 1, 2–8 steps. Set
-  `"scheduler_kwargs": {"timestep_spacing": "trailing"}` in the prompt config (the UI does this automatically).
-- **AnimateLCM** (`AnimateLCM_sd15_t2v.ckpt` + its LoRA in `lora_map` at 0.8): scheduler `lcm`, 4–8 steps, CFG 1–2.
-- **LongAnimateDiff** (64/128-frame modules): the longer positional encoding is detected and context can go above 32.
-- Not supported: SparseCtrl, and diffusers-format "MotionAdapter" folders (use the original / ComfyUI files).
+*(Installation: see [Installation (Windows)](#installation-windows) above; the original instructions are replaced because their unpinned torch install breaks.)*
 
 ### How To Use
 Almost same as the original animatediff-cli, but with a slight change in config format.
@@ -667,10 +711,8 @@ animatediff tile-upscale output/2023-08-25T20-00-00-sample-mistoonanime_v20/00-3
 <br>
 <br>
 
-Below is the original readme.  
-
-----------------------------------------------------------  
-
+<details>
+<summary>Original animatediff-cli README by neggles (historical; parts are outdated, e.g. LoRAs do work)</summary>
 
 # animatediff
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/neggles/animatediff-cli/main.svg)](https://results.pre-commit.ci/latest/github/neggles/animatediff-cli/main)
@@ -771,3 +813,7 @@ see [guoyww/AnimateDiff](https://github.com/guoyww/AnimateDiff) (very little of 
 n.b. the copyright notice in `COPYING` is missing the original authors' names, solely because
 the original repo (as of this writing) has no name attached to the license. I have, however,
 used the same license they did (Apache 2.0).
+
+</details>
+
+</details>
