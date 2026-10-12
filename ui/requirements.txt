@@ -1,0 +1,4 @@
+# UI-only dependencies. Installed into ui/.venv, separate from the main venv,
+# because Gradio needs pydantic 2 while animatediff is pinned to pydantic 1.
+gradio==5.50.0
+pillow>=10.0

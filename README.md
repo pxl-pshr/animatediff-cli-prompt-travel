@@ -87,6 +87,36 @@ I found a detailed tutorial
 (https://www.reddit.com/r/StableDiffusion/comments/16vlk9j/guide_to_creating_videos_with/)  
 (https://www.youtube.com/watch?v=7_hh3wOD81s)  
 
+### Web UI
+After the installation above, double-click **`webui.bat`** (or run it from a terminal). The first launch creates
+`ui\.venv` with Gradio (kept separate from `venv\` because Gradio needs pydantic 2), then opens
+http://127.0.0.1:7860 in your browser. Options: `webui.bat --port 7861`, `--listen` (LAN), `--share`.
+
+| Tab | What it does |
+|---|---|
+| **Text → Video** | Prompt travel with a keyframe table, LoRAs, camera-motion LoRAs, IP-Adapter reference images, up to 3 ControlNet units (upload a driving video or images; frames are extracted and placed for you), img2img, LCM fast mode, gradual hires fix. Load any preset or past run, save your own presets. |
+| **Video → Video** | Stylize a video in 3 steps: prepare (extract frames + auto-describe), style (prompt, model, which ControlNets follow the source, optional 2nd upscale pass), then a short test run or the full render. |
+| **Upscale & Refine** | `refine` (re-render larger with AnimateDiff, smooth) or `tile-upscale` (per frame) on any finished video. |
+| **Gallery** | Every run in `output/`, `upscaled/`, `refine/`, `stylize/` with its settings; reload settings, upscale, open folder, delete. |
+| **Setup & Models** | GPU / environment / optional-feature checks, model inventory, job queue with logs, fix-checkpoint tool. |
+
+Renders run one at a time in a background queue as separate CLI processes: closing or refreshing the page does not
+stop them, Cancel kills the whole process tree, and failures are explained in plain language with a fix.
+Settings are validated before anything starts (missing files, wrong motion-module type, keyframes past the end, …).
+
+### AnimateDiff v3 and newer motion modules
+Put the files in `data/models/motion-module/` and select them like any other motion module; the type is detected
+from the file (no need to edit configs).
+- **v3** (`v3_sd15_mm.ckpt`): supported, context up to 32. The optional **Domain Adapter** (`v3_sd15_adapter.ckpt`)
+  is an image LoRA, but the CLI loads it through `motion_lora_map` (the UI lists it with the other LoRAs and routes it), scale 0.5–1.0.
+
+The next three load with the same changes (verified from their weights) but have not been render-tested yet:
+- **AnimateDiff-Lightning** (`*_comfyui.safetensors`): Euler, CFG 1, 2–8 steps. Set
+  `"scheduler_kwargs": {"timestep_spacing": "trailing"}` in the prompt config (the UI does this automatically).
+- **AnimateLCM** (`AnimateLCM_sd15_t2v.ckpt` + its LoRA in `lora_map` at 0.8): scheduler `lcm`, 4–8 steps, CFG 1–2.
+- **LongAnimateDiff** (64/128-frame modules): the longer positional encoding is detected and context can go above 32.
+- Not supported: SparseCtrl, and diffusers-format "MotionAdapter" folders (use the original / ComfyUI files).
+
 ### How To Use
 Almost same as the original animatediff-cli, but with a slight change in config format.
 ```json
