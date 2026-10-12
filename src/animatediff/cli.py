@@ -40,13 +40,13 @@ from animatediff.generate import (controlnet_preprocess, create_pipeline,
 from animatediff.pipelines import AnimationPipeline, load_text_embeddings
 from animatediff.settings import (CKPT_EXTENSIONS, InferenceConfig,
                                   ModelConfig, get_infer_config,
-                                  get_model_config)
+                                  get_max_context, get_model_config)
 from animatediff.utils.civitai2config import generate_config_from_civitai_info
 from animatediff.utils.model import (checkpoint_to_pipeline,
                                      fix_checkpoint_if_needed, get_base_model)
 from animatediff.utils.pipeline import get_context_params, send_to_device
-from animatediff.utils.util import (extract_frames, is_sdxl_checkpoint,
-                                    is_v2_motion_module, path_from_cwd,
+from animatediff.utils.util import (extract_frames, get_motion_module_info,
+                                    is_sdxl_checkpoint, path_from_cwd,
                                     save_frames, save_imgs, save_video,
                                     set_tensor_interpolation_method, show_gpu)
 from animatediff.utils.wild_card import replace_wild_card
@@ -316,20 +316,23 @@ def generate(
     is_sdxl = is_sdxl_checkpoint(data_dir.joinpath(model_config.path))
 
     if is_sdxl:
-        is_v2 = False
+        mm_info = {"version": "v1", "pe_len": None}
     else:
-        is_v2 = is_v2_motion_module(data_dir.joinpath(model_config.motion_module))
+        mm_info = get_motion_module_info(data_dir.joinpath(model_config.motion_module))
 
-    infer_config: InferenceConfig = get_infer_config(is_v2, is_sdxl)
+    infer_config: InferenceConfig = get_infer_config(mm_info["version"], is_sdxl, mm_info["pe_len"])
 
     set_tensor_interpolation_method( model_config.tensor_interpolation_slerp )
 
     # set sane defaults for context, overlap, and stride if not supplied
     context, overlap, stride = get_context_params(length, context, overlap, stride)
 
-    if (not is_v2) and (not is_sdxl) and (context > 24):
-        logger.warning( "For motion module v1, the maximum value of context is 24. Set to 24" )
-        context = 24
+    max_context = get_max_context(infer_config)
+    if (not is_sdxl) and (context > max_context):
+        logger.warning( f"For motion module {mm_info['version']}, the maximum value of context is {max_context}. Set to {max_context}" )
+        context = max_context
+        if overlap >= context:
+            overlap = context // 4
 
     # turn the device string into a torch.device
     device: torch.device = torch.device(device)
@@ -609,7 +612,8 @@ def tile_upscale(
     if is_sdxl:
         raise ValueError("Currently SDXL model is not available for this command.")
 
-    infer_config: InferenceConfig = get_infer_config(is_v2_motion_module(data_dir.joinpath(model_config.motion_module)), is_sdxl)
+    mm_info = get_motion_module_info(data_dir.joinpath(model_config.motion_module))
+    infer_config: InferenceConfig = get_infer_config(mm_info["version"], is_sdxl, mm_info["pe_len"])
     frames_dir = frames_dir.absolute()
 
     set_tensor_interpolation_method( model_config.tensor_interpolation_slerp )

@@ -84,17 +84,40 @@ class InferenceConfig(BaseSettings):
         json_config_path: Path
 
 
+MOTION_MODULE_CONFIGS = {
+    "v1": "inference/default.json",
+    "v2": "inference/motion_v2.json",
+    "v3": "inference/motion_v3.json",
+}
+
+
 def get_infer_config(
-    is_v2:bool,
-    is_sdxl:bool,
+    version: Union[str, bool],
+    is_sdxl: bool,
+    pe_len: Optional[int] = None,
 ) -> InferenceConfig:
-    config_path: Path = get_dir("config").joinpath("inference/default.json" if not is_v2 else "inference/motion_v2.json")
+    """version: "v1" / "v2" / "v3" (a bool is accepted for backwards compatibility: True means v2).
+    pe_len: length of the module's positional encoding; when it is longer than the config's
+    default (e.g. LongAnimateDiff, 64/128 frames) the config is widened to match."""
+    if isinstance(version, bool):
+        version = "v2" if version else "v1"
+    config_path: Path = get_dir("config").joinpath(MOTION_MODULE_CONFIGS.get(version, MOTION_MODULE_CONFIGS["v1"]))
 
     if is_sdxl:
         config_path = get_dir("config").joinpath("inference/motion_sdxl.json")
 
     settings = InferenceConfig(json_config_path=config_path)
+
+    if pe_len and not is_sdxl:
+        mm_kwargs = settings.unet_additional_kwargs.get("motion_module_kwargs", {})
+        if pe_len > mm_kwargs.get("temporal_position_encoding_max_len", 0):
+            mm_kwargs["temporal_position_encoding_max_len"] = pe_len
     return settings
+
+
+def get_max_context(infer_config: InferenceConfig) -> int:
+    mm_kwargs = infer_config.unet_additional_kwargs.get("motion_module_kwargs", {})
+    return int(mm_kwargs.get("temporal_position_encoding_max_len", 24))
 
 
 class ModelConfig(BaseSettings):
@@ -109,6 +132,7 @@ class ModelConfig(BaseSettings):
     tensor_interpolation_slerp: bool = Field(True)
     seed: list[int] = Field([])  # Seed(s) for the random number generators
     scheduler: DiffusionScheduler = Field(DiffusionScheduler.k_dpmpp_2m)  # Scheduler to use
+    scheduler_kwargs: Dict[str, Any] = Field({})  # overrides for the noise scheduler config (e.g. {"timestep_spacing": "trailing"})
     steps: int = 25  # Number of inference steps to run
     guidance_scale: float = 7.5  # CFG scale to use
     unet_batch_size: int = 1

@@ -85,9 +85,9 @@ class PromptEncoderSDXL(PromptEncoder):
         prompt_list = []
 
         for condi in region_condi_list:
-            _prompt_map = condi["prompt_map"]
+            # sorted before storing so keyframes pair with the right embeddings (see animation.py)
+            _prompt_map = dict(sorted(condi["prompt_map"].items()))
             prompt_map_list.append(_prompt_map)
-            _prompt_map = dict(sorted(_prompt_map.items()))
             _prompt_list = [_prompt_map[key_frame] for key_frame in _prompt_map.keys()]
             prompt_nums.append( len(_prompt_list) )
             prompt_list += _prompt_list
@@ -161,9 +161,9 @@ class PromptEncoderSDXL(PromptEncoder):
             ip_im_list = []
 
             for condi in region_condi_list:
-                _ip_im_map = condi["ip_adapter_map"]["images"]
+                # sorted before storing so keyframes pair with the right embeddings (see animation.py)
+                _ip_im_map = dict(sorted(condi["ip_adapter_map"]["images"].items()))
                 ip_im_map_list.append(_ip_im_map)
-                _ip_im_map = dict(sorted(_ip_im_map.items()))
                 _ip_im_list = [_ip_im_map[key_frame] for key_frame in _ip_im_map.keys()]
                 ip_im_nums.append( len(_ip_im_list) )
                 ip_im_list += _ip_im_list

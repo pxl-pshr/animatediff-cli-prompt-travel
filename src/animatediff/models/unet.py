@@ -567,12 +567,28 @@ class UNet3DConditionModel(ModelMixin, ConfigMixin):
         else:
             raise FileNotFoundError(f"no motion module weights found in {motion_module_path}")
 
+        # some releases wrap the weights or carry a config entry
+        motion_state_dict = motion_state_dict.get("state_dict", motion_state_dict)
+        motion_state_dict.pop("animatediff_config", None)
+        # positional encodings are fixed sinusoids that the model builds itself (as upstream does);
+        # dropping them lets modules with a different stored length (v3, LongAnimateDiff) load
+        motion_state_dict = {k: v for k, v in motion_state_dict.items() if not k.endswith("pos_encoder.pe")}
+
         # merge the state dicts
         state_dict.update(motion_state_dict)
 
         # load the weights into the model
         m, u = model.load_state_dict(state_dict, strict=False)
         logger.debug(f"### missing keys: {len(m)}; \n### unexpected keys: {len(u)};")
+
+        missing_motion = [k for k in m if "motion_modules" in k and not k.endswith("pos_encoder.pe")]
+        if missing_motion:
+            # a wrong inference config (or a diffusers-format file) would otherwise give a video with no motion
+            raise RuntimeError(
+                f"Motion module {motion_module_path.name} is missing {len(missing_motion)} weights for this "
+                f"architecture (first: {missing_motion[0]}). It is not compatible with the selected "
+                f"inference config."
+            )
 
         params = [p.numel() if "temporal" in n else 0 for n, p in model.named_parameters()]
         logger.info(f"Loaded {sum(params) / 1e6}M-parameter motion module")

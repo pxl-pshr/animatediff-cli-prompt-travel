@@ -89,9 +89,11 @@ class PromptEncoder:
         prompt_list = []
 
         for condi in region_condi_list:
-            _prompt_map = condi["prompt_map"]
+            # sort BEFORE storing: embeddings are computed in sorted key order below and assigned by
+            # iterating this map. prompt_preprocess appends its hold keyframes unsorted, which used to
+            # pair keyframes with the wrong prompts (e.g. 0/32/64/96 never showed the 64 prompt)
+            _prompt_map = dict(sorted(condi["prompt_map"].items()))
             prompt_map_list.append(_prompt_map)
-            _prompt_map = dict(sorted(_prompt_map.items()))
             _prompt_list = [_prompt_map[key_frame] for key_frame in _prompt_map.keys()]
             prompt_nums.append( len(_prompt_list) )
             prompt_list += _prompt_list
@@ -160,9 +162,9 @@ class PromptEncoder:
             ip_im_list = []
 
             for condi in region_condi_list:
-                _ip_im_map = condi["ip_adapter_map"]["images"]
+                # sorted before storing, for the same reason as the text prompt maps above
+                _ip_im_map = dict(sorted(condi["ip_adapter_map"]["images"].items()))
                 ip_im_map_list.append(_ip_im_map)
-                _ip_im_map = dict(sorted(_ip_im_map.items()))
                 _ip_im_list = [_ip_im_map[key_frame] for key_frame in _ip_im_map.keys()]
                 ip_im_nums.append( len(_ip_im_list) )
                 ip_im_list += _ip_im_list

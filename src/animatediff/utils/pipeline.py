@@ -115,9 +115,14 @@ def get_context_params(
     stride: Optional[int] = None,
 ):
     if context is None:
-        context = min(length, 16)
+        context = 16
+    # a context window longer than the video breaks the batch shapes in the UNet
+    # (e.g. "size of tensor a (3072) must match the size of tensor b (6144)")
+    context = max(1, min(context, length))
     if overlap is None:
         overlap = context // 4
+    # overlap >= context makes the window step <= 0 (no windows / crash)
+    overlap = max(0, min(overlap, context - 1))
     if stride is None:
         stride = 0
     return context, overlap, stride

@@ -524,22 +524,55 @@ def extract_frames(movie_file_path, fps, out_dir, aspect_ratio, duration, offset
 
 
 
-def is_v2_motion_module(motion_module_path:Path):
+MM_MID_BLOCK_KEY = "mid_block.motion_modules.0.temporal_transformer.norm.bias"
+
+
+def get_motion_module_info(motion_module_path:Path) -> dict:
+    """Identify an SD1.5 motion module without building the model.
+
+    v1: no mid-block motion module, positional encoding 24 (mm_sd_v14/v15, most v1 fine-tunes)
+    v2: mid-block motion module (mm_sd_v15_v2, AnimateLCM, AnimateDiff-Lightning, LongAnimateDiff)
+    v3: no mid-block, positional encoding 32 (v3_sd15_mm)
+    pe_len: stored positional-encoding length (None when the file doesn't store it)
+    """
     if motion_module_path.suffix == ".safetensors":
-        from safetensors.torch import load_file
-        loaded = load_file(motion_module_path, "cpu")
+        from safetensors import safe_open
+        with safe_open(motion_module_path, framework="pt", device="cpu") as f:
+            keys = list(f.keys())
+            pe_keys = [k for k in keys if k.endswith("pos_encoder.pe")]
+            pe_len = f.get_slice(pe_keys[0]).get_shape()[1] if pe_keys else None
     else:
-        from torch import load
-        loaded = load(motion_module_path, "cpu")
+        try:
+            loaded = torch.load(motion_module_path, map_location="cpu", mmap=True, weights_only=True)
+        except Exception:  # legacy (non-zip) checkpoints can't be memory-mapped
+            loaded = torch.load(motion_module_path, map_location="cpu")
+        loaded = loaded.get("state_dict", loaded)
+        keys = list(loaded)
+        pe_keys = [k for k in keys if k.endswith("pos_encoder.pe")]
+        pe_len = loaded[pe_keys[0]].shape[1] if pe_keys else None
+        loaded = None
 
-    is_v2 = "mid_block.motion_modules.0.temporal_transformer.norm.bias" in loaded
+    if not any(".temporal_transformer." in k for k in keys):
+        raise ValueError(
+            f"{motion_module_path.name} is not an original-format AnimateDiff motion module "
+            "(diffusers-format MotionAdapter files are not supported; use the original/ComfyUI release)."
+        )
 
-    loaded = None
-    torch.cuda.empty_cache()
+    has_mid = MM_MID_BLOCK_KEY in keys
+    if has_mid:
+        version = "v2"
+    elif pe_len:
+        version = "v1" if pe_len <= 24 else "v3"
+    else:
+        version = "v3" if "v3" in motion_module_path.stem.lower() else "v1"
 
-    logger.info(f"{is_v2=}")
+    info = {"version": version, "mid_block": has_mid, "pe_len": pe_len}
+    logger.info(f"motion module: {info}")
+    return info
 
-    return is_v2
+
+def is_v2_motion_module(motion_module_path:Path):
+    return get_motion_module_info(motion_module_path)["version"] == "v2"
 
 def is_sdxl_checkpoint(checkpoint_path:Path):
     if checkpoint_path.suffix == ".safetensors":

@@ -352,7 +352,8 @@ def create_config(
     }
 
     model_config.gradual_latent_hires_fix_map = {
-        "enable" : True,
+        # only with -gh: at the default 512 base size the half-size draft (256px) washes out every frame
+        "enable" : gradual_latent_hires_fix,
         "scale" : {
             "0": 0.5,
             "0.7": 1.0

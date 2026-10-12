@@ -463,7 +463,9 @@ def create_pipeline_sdxl(
     )
 
     # set up scheduler
-    sched_kwargs = infer_config.noise_scheduler_kwargs
+    # copy: get_scheduler mutates its config, and scheduler_kwargs (e.g. timestep_spacing for
+    # AnimateDiff-Lightning) may override the inference defaults per prompt config
+    sched_kwargs = {**infer_config.noise_scheduler_kwargs, **model_config.scheduler_kwargs}
     scheduler = get_scheduler(model_config.scheduler, sched_kwargs)
     logger.info(f'Using scheduler "{model_config.scheduler}" ({scheduler.__class__.__name__})')
 
@@ -655,7 +657,9 @@ def create_pipeline(
                     logger.warn(f"{model_config.scheduler=}")
                     logger.warn("If you are forced to exit with an error, change to euler_a or lcm")
 
-    sched_kwargs = infer_config.noise_scheduler_kwargs
+    # copy: get_scheduler mutates its config, and scheduler_kwargs (e.g. timestep_spacing for
+    # AnimateDiff-Lightning) may override the inference defaults per prompt config
+    sched_kwargs = {**infer_config.noise_scheduler_kwargs, **model_config.scheduler_kwargs}
     scheduler = get_scheduler(model_config.scheduler, sched_kwargs)
     logger.info(f'Using scheduler "{model_config.scheduler}" ({scheduler.__class__.__name__})')
 
@@ -815,7 +819,9 @@ def create_us_pipeline(
 ) -> DiffusionPipeline:
 
     # set up scheduler
-    sched_kwargs = infer_config.noise_scheduler_kwargs
+    # copy: get_scheduler mutates its config, and scheduler_kwargs (e.g. timestep_spacing for
+    # AnimateDiff-Lightning) may override the inference defaults per prompt config
+    sched_kwargs = {**infer_config.noise_scheduler_kwargs, **model_config.scheduler_kwargs}
     scheduler = get_scheduler(model_config.scheduler, sched_kwargs)
     logger.info(f'Using scheduler "{model_config.scheduler}" ({scheduler.__class__.__name__})')
 

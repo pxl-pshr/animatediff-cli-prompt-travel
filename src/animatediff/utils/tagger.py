@@ -45,10 +45,10 @@ class Tagger:
     def __init__(self, general_threshold, character_threshold, ignore_tokens, with_confidence, is_danbooru_format,is_cpu):
         prepare_wd14tagger()
 #        self.model = onnxruntime.InferenceSession("data/models/WD14tagger/model.onnx", providers=['CUDAExecutionProvider','CPUExecutionProvider'])
-        if is_cpu:
-            self.model = onnxruntime.InferenceSession("data/models/WD14tagger/model.onnx", providers=['CPUExecutionProvider'])
-        else:
-            self.model = onnxruntime.InferenceSession("data/models/WD14tagger/model.onnx", providers=['CUDAExecutionProvider'])
+        # fall back to CPU when the CPU-only onnxruntime package is installed (no CUDA provider)
+        use_cuda = (not is_cpu) and ('CUDAExecutionProvider' in onnxruntime.get_available_providers())
+        providers = ['CUDAExecutionProvider'] if use_cuda else ['CPUExecutionProvider']
+        self.model = onnxruntime.InferenceSession("data/models/WD14tagger/model.onnx", providers=providers)
         df = pd.read_csv("data/models/WD14tagger/selected_tags.csv")
         self.tag_names = df["name"].tolist()
         self.rating_indexes = list(np.where(df["category"] == 9)[0])

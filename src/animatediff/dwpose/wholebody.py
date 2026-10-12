@@ -9,8 +9,9 @@ from .onnxpose import inference_pose
 
 class Wholebody:
     def __init__(self, device='cuda:0'):
-        providers = ['CPUExecutionProvider'
-                 ] if device == 'cpu' else ['CUDAExecutionProvider']
+        # fall back to CPU when the CPU-only onnxruntime package is installed (no CUDA provider)
+        use_cuda = device != 'cpu' and 'CUDAExecutionProvider' in ort.get_available_providers()
+        providers = ['CUDAExecutionProvider'] if use_cuda else ['CPUExecutionProvider']
         onnx_det = 'data/models/DWPose/yolox_l.onnx'
         onnx_pose = 'data/models/DWPose/dw-ll_ucoco_384.onnx'
 

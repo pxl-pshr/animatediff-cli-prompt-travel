@@ -7,10 +7,19 @@ except ImportError:
     __version__ = "unknown (no version information available)"
     version_tuple = (0, 0, "unknown", "noinfo")
 
+import os
+import sys
 from functools import lru_cache
 from os import getenv
 from pathlib import Path
 from warnings import filterwarnings
+
+if sys.platform == "win32":
+    # huggingface_hub < 0.19 probes for symlink support (hf_hub_download(local_dir=...)) by creating a temp
+    # dir in the common parent of the HF cache and data/ — usually C:\Users, which isn't writable. Python's
+    # mkdtemp then retries ~238k times and the download appears to hang forever. Copying files instead of
+    # symlinking skips the probe. Must be set before huggingface_hub is imported.
+    os.environ.setdefault("HF_HUB_LOCAL_DIR_AUTO_SYMLINK_THRESHOLD", str(1 << 62))
 
 from rich.console import Console
 from tqdm import TqdmExperimentalWarning
