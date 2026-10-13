@@ -231,3 +231,30 @@ span[data-testid="block-info"].has-info:hover + div,
 .adui-global.busy {background:color-mix(in srgb, var(--color-accent) 18%, transparent); font-weight:500;}
 footer {display:none !important;}
 """
+
+
+# The progress timers poll every 1-2 s, and while the server is down (its terminal was closed or
+# restarted) every failed poll adds its own "Connection errored out" toast. Show the first one only,
+# and collapse any other identical toasts into one.
+JS = """
+() => {
+  let lastConnError = 0;
+  new MutationObserver(() => {
+    const items = document.querySelectorAll(".toast-wrap > *");
+    if (!items.length) return;
+    const now = Date.now(), visible = new Set();
+    for (const el of items) {
+      const key = el.textContent.trim();
+      if (!el.dataset.aduiSeen) {
+        el.dataset.aduiSeen = "1";
+        if (key.includes("Connection errored out")) {
+          if (now - lastConnError < 60000) el.style.display = "none";
+          lastConnError = now;
+        }
+      }
+      if (el.style.display === "none") continue;
+      if (visible.has(key)) el.style.display = "none"; else visible.add(key);
+    }
+  }).observe(document.body, {childList: true, subtree: true});
+}
+"""

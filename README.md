@@ -39,6 +39,11 @@ frame 64 *running*) and the animation morphs between them.
 Changes in this fork, newest first. Based on upstream
 [`dbf40d1`](https://github.com/s9roll7/animatediff-cli-prompt-travel/commit/dbf40d1) (2023-12-13).
 
+### 2026-10-12
+- **Added**: a Clear button for the prompt timeline.
+- **Fixed**: when the UI server stopped or restarted, an open page piled up hundreds of "Connection errored out"
+  alerts (one per progress poll); now it shows one.
+
 ### 2026-10-11
 - **Added**: web UI (`webui.bat`) with Text → Video, Video → Video, Upscale & Refine, Gallery and Setup tabs.
 - **Added**: AnimateDiff v3 motion modules (detected automatically, `config/inference/motion_v3.json`) and the

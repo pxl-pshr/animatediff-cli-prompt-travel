@@ -15,7 +15,7 @@ import gradio as gr  # noqa: E402
 
 import html  # noqa: E402
 
-from components import CSS  # noqa: E402
+from components import CSS, JS  # noqa: E402
 from core.jobs import MANAGER, QUEUED  # noqa: E402
 from core.library import LIBRARY  # noqa: E402
 from core.paths import DATA_DIR, OUTPUT_DIRS, REPO_ROOT, UI_STATE_DIR, cli_python, ensure_dirs  # noqa: E402
@@ -45,7 +45,7 @@ def global_status() -> str:
 
 
 def build_app() -> gr.Blocks:
-    with gr.Blocks(title="AnimateDiff Prompt Travel", theme=THEME, css=CSS, analytics_enabled=False) as demo:
+    with gr.Blocks(title="AnimateDiff Prompt Travel", theme=THEME, css=CSS, js=JS, analytics_enabled=False) as demo:
         with gr.Row(equal_height=True):
             with gr.Column(scale=3):
                 gr.HTML(HEADER)

@@ -208,6 +208,7 @@ def build(demo: gr.Blocks) -> SimpleNamespace:
                     add_kf = gr.Button("＋ Row", size="sm")
                     spread_kf = gr.Button("↔ Spread evenly", size="sm")
                     sort_kf = gr.Button("Sort", size="sm")
+                    clear_kf = gr.Button("Clear", size="sm")
                 F["fixed_ratio"] = gr.Slider(0, 1, value=0.5, step=0.05, label="Keyframe hold",
                                              info="How long each row holds before morphing to the next "
                                                   "(0 = morph the whole time, 1 = near hard cut).")
@@ -569,6 +570,7 @@ def build(demo: gr.Blocks) -> SimpleNamespace:
     add_kf.click(add_keyframe, [F["timeline"], F["length"]], [F["timeline"]], queue=False)
     spread_kf.click(spread, [F["timeline"], F["length"]], [F["timeline"]], queue=False)
     sort_kf.click(sort_rows, [F["timeline"]], [F["timeline"]], queue=False)
+    clear_kf.click(lambda: [[0, ""]], None, [F["timeline"]], queue=False)
 
     for i, (type_dd, desc, src, vid, imgs, folder) in enumerate(cn_parts):
         type_dd.change(lambda t: cn_desc.get(t, ""), [type_dd], [desc], queue=False)
